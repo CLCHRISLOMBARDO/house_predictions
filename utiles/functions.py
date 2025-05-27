@@ -66,6 +66,30 @@ class PropertyType:
        self._outliers_surface_ent()
        # Quinto, outliers de cov/total
        self._outliers_ratio_cov_total()
+   
+   def tratamiento_price_m2(self):
+       print("1 -------------")
+       self._calculo_price_m2_real()
+       print("")
+       print("2 -------------")
+       self._outliers_price_m2_bruto()
+       print("")
+       print("3 -------------")
+       self._calculo_price_m2_std()
+       print("")
+       print("4 -------------")
+    #    self._outliers_price_m2_error()
+       self._outliers_prices_zonap()
+
+   def tratamiento_rooms_surfaceCovered(self):
+       if self.prop=="Cochera":
+           pass
+       self._imputacion_rooms_surface(a_imputar="surface_covered")
+       self.tratamiento_price_m2()
+       self._imputacion_rooms_surface(a_imputar="rooms_rec")
+
+       
+
     
 #                       --------------------
 # ********************* | METODOS INTERNOS | ***********************************
@@ -504,6 +528,137 @@ class PropertyType:
         self.df["cov_total"] = self.df["surface_covered"] / self.df["surface_total"] * 100
 
 # Tratamientos outliers price/m2 -----------------------------------------------------------------------------------------------------------
-   def calculo_price_m2_real(df):
-        df["price_m2_real"]=df["price"]/(df["surface_covered"]+0.001)
-        return df
+   def _calculo_price_m2_real(self):
+        self.df["price_m2_real"]=self.df["price"]/(self.df["surface_covered"]+0.001)
+   
+   def _outliers_price_m2_bruto(self):
+        lim_inf=500
+        lim_sup=10000
+        f_lim_inf = self.df["price_m2_real"] <lim_inf
+        f_lim_sup = self.df["price_m2_real"] > lim_sup
+        f_out =  f_lim_inf | f_lim_sup
+        f_in = ~f_out
+        print(f"shape antes de eliminar primeros outlaiers {self.df.shape}")
+        self.df=self.df.loc[f_in]
+        print(f"shape despues de eliminar primeros outlaiers {self.df.shape}")
+
+   def _calculo_price_m2_std(self):
+        self.df["original_index"] = self.df.index
+        self.df["price_m2"] = self.df["price"] / (self.df["surface_total"] + 0.001)
+        gb = self.df.groupby(by=[ "l3"])["price_m2"].mean().reset_index()
+        self.df = self.df[self.df.columns.drop("price_m2")].merge(gb, on=["l3"], how="left")
+        self.df = self.df.set_index("original_index")
+        self.df.index.name = "id"
+        self.df["price_m2_x_surface_total"] = self.df["price_m2"] * self.df["surface_total"]
+
+   def _outliers_price_m2_error(self):
+        self.df["error"] = self.df["price_m2_real"] - self.df["price_m2"]
+        print(f"df shape antes:{self.df.shape}")
+        f_out=np.abs(self.df["error"])> 1000
+        print(f"Cantidad de registros a eliminar: {self.df.loc[f_out].shape}")
+        self.df=self.df.loc[~f_out]
+        print(f"df shape despues:{self.df.shape}")
+
+   def _outliers_prices_zonap(self):
+        umbrales_por_l3 = {
+        'Agronomía': {'min': 900, 'max': 3800},
+            'Almagro': {'min': 900, 'max': 3800},
+            'Balvanera': {'min': 700, 'max': 3600},
+            'Barracas': {'min': 900, 'max': 3800},
+            'Barrio Norte': {'min': 1700, 'max': 4500},
+            'Belgrano': {'min': 1000, 'max': 5000},
+            'Boedo': {'min': 800, 'max': 3700},
+            'Boca': {'min': 500, 'max': 3100},
+            'Caballito': {'min': 1000, 'max': 4100},
+            'Chacarita': {'min': 1000, 'max': 3800},
+            'Coghlan': {'min': 1000, 'max': 4100},
+            'Colegiales': {'min': 1200, 'max': 4500},
+            'Constitución': {'min': 400, 'max': 3400},
+            'Flores': {'min': 700, 'max': 3800},
+            'Floresta': {'min': 500, 'max': 3500},
+            'Liniers': {'min': 700, 'max': 3800},
+            'Mataderos': {'min': 600, 'max': 3500},
+            'Monserrat': {'min': 700, 'max': 3700},
+            'Monte Castro': {'min': 900, 'max': 3700},
+            'Nuñez': {'min': 1000, 'max': 5000},
+            'Palermo': {'min': 700, 'max': 8000},
+            'Parque Avellaneda': {'min': 500, 'max': 3300},
+            'Parque Chacabuco': {'min': 800, 'max': 3700},
+            'Parque Chas': {'min': 1000, 'max': 3700},
+            'Parque Patricios': {'min': 500, 'max': 3700},
+            'Paternal': {'min': 700, 'max': 3700},
+            'Pompeya': {'min': 500, 'max': 3000},
+            'Puerto Madero': {'min': 1500, 'max': 8300}, 
+            'Recoleta': {'min': 1000, 'max': 5000},
+            'Retiro': {'min': 1000, 'max': 4500},
+            'Saavedra': {'min': 1000, 'max': 3900},
+            'San Cristobal': {'min': 600, 'max': 3400},
+            'San Nicolás': {'min': 800, 'max': 3500},
+            'San Telmo': {'min': 900, 'max': 4000},
+            'Versalles': {'min': 700, 'max': 3600},
+            'Velez Sarsfield': {'min': 700, 'max': 3600},
+            'Villa Crespo': {'min': 1000, 'max': 4000},
+            'Villa del Parque': {'min': 1000, 'max': 3700},
+            'Villa Devoto': {'min': 1000, 'max': 3900},
+            'Villa General Mitre': {'min': 700, 'max': 3600}, 
+            'Villa Lugano': {'min': 400, 'max': 2800},
+            'Villa Luro': {'min': 800, 'max': 3800},
+            'Villa Ortuzar': {'min': 1000, 'max': 3800},
+            'Villa Pueyrredón': {'min': 1000, 'max': 3700},
+            'Villa Real': {'min': 700, 'max': 3600},
+            'Villa Riachuelo': {'min': 400, 'max': 3100},
+            'Villa Santa Rita': {'min': 700, 'max': 3800},
+            'Villa Soldati': {'min': 400, 'max': 3000},
+            'Villa Urquiza': {'min': 1000, 'max': 4200},
+        }
+        barrios = self.df["l3"].value_counts().index
+        index_out=[]
+        for l in barrios :
+            print(l)
+            f_l = self.df["l3"] == l
+            f_out = (self.df["price_m2_real"] <umbrales_por_l3[l]["min"]) | (self.df["price_m2_real"] >umbrales_por_l3[l]["max"])
+            print(f"vamos a eliminar : {self.df.loc[f_l & f_out].shape[0]}")
+            index_out=index_out + list(self.df.loc[f_l & f_out].index)
+        
+        print(f"len index_out: {len(index_out)}")
+        print(f"shape antes : {self.df.shape}")
+        self.df = self.df.loc[~ self.df.index.isin(index_out)]
+        print(f"shape despues : {self.df.shape}")
+
+# Tratamientos rooms - surface_covered  -----------------------------------------------------------------------------------------------------------
+
+   def _imputacion_rooms_surface(self,a_imputar=None):
+        if a_imputar is None:
+            print("Especifica variable a imputar")
+        elif a_imputar=="surface_covered":
+            print(f"nan surface_covered antes : {self.df['surface_covered'].isna().sum()}")
+            gb_rooms = self.df.groupby(["rooms_rec"])["surface_covered"].mean()
+            
+            rooms=self.df["rooms_rec"].dropna().unique()
+            for r in rooms:
+                print("***    ***    ***   ***   ***   ***   ***")
+                print(r)
+                f_r=self.df["rooms_rec"] == r
+                f_cov_nan=self.df["surface_covered"].isna()
+                if r in gb_rooms.index:
+                    print(f"El valor medio de cada room es : {gb_rooms[int(r)]}")
+                    self.df.loc[ f_r & f_cov_nan , "surface_covered"] = gb_rooms[int(r)] * r
+            print(f"nan surface_covered despues : {self.df['surface_covered'].isna().sum()}")
+        elif a_imputar =="rooms_rec":
+            print(f"nan rooms_rec antes : {self.df['rooms_rec'].isna().sum()}")
+            gb_rooms = self.df.groupby(["rooms_rec"])["surface_covered"].mean()
+            f_rooms_nan=(self.df["rooms_rec"].isna()) & (self.df["surface_covered"].notna())
+            self.df.loc[f_rooms_nan,"rooms_rec"] = self.df.loc[f_rooms_nan].apply(lambda row : self._imputacion_rooms_con_surface(row,gb_rooms) , axis=1)
+            print(f"nan rooms_rec despues : {self.df['rooms_rec'].isna().sum()}")       
+
+   @staticmethod
+   def _imputacion_rooms_con_surface(row,gb_rooms):
+        gb_df=pd.DataFrame(gb_rooms)
+        gb_df=gb_df.reset_index()
+
+        surface=row["surface_covered"]
+        gb_df["rooms_x_surface"] = gb_df["rooms_rec"] * gb_df["surface_covered"]
+        gb_df["diferencia"] = np.abs(gb_df["rooms_x_surface"] - surface)
+        min_dif = gb_df["diferencia"].min()
+        rooms = gb_df.loc[gb_df["diferencia"] == min_dif ,"rooms_rec"]
+        return rooms.iloc[0]
