@@ -61,7 +61,8 @@ class PropertyType:
        print('')
        self._outliers_surface_ap("surface_total")
        # Tercero, imputamos  covered con total
-       self._imputacion_covered_con_total_viceversa()
+       self._imputacion_covered_con_total_viceversa(a_imputar="surface_covered")
+       self._imputacion_covered_con_total_viceversa(a_imputar="surface_total")
        # Cuarto, volvemos nan los outlayers de ent con los limites de ap
        self._outliers_surface_ent()
        # Quinto, outliers de cov/total
@@ -83,14 +84,196 @@ class PropertyType:
 
    def tratamiento_rooms_surfaceCovered(self):
        if self.prop=="Cochera":
-           pass
+           return
        self._imputacion_rooms_surface(a_imputar="surface_covered")
        self.tratamiento_price_m2()
        self._imputacion_rooms_surface(a_imputar="rooms_rec")
 
-       
+   def tratamiento_final_nan_surfaces(self):
+       self._eliminacion_nan_surfcovered()
+       self._imputacion_covered_con_total_viceversa(a_imputar="surface_total")
 
-    
+   def tratamiento_final_nan_ambientes(self):
+       if self.prop=="Cochera":
+           return
+       print(f"nan en rooms_rec ANTES:{self.df['rooms_rec'].isna().sum()}")
+       print(f"nan en bedrooms_rec ANTES:{self.df['bedrooms_rec'].isna().sum()}")
+       print(f"nan en bathrooms_rec ANTES:{self.df['bathrooms_rec'].isna().sum()}")
+       self.df[["rooms_rec","bedrooms_rec","bathrooms_rec"]]=self.df.apply(self._imputacion_espacios_2,axis=1)
+       print(f"nan en rooms_rec DESPUES:{self.df['rooms_rec'].isna().sum()}")
+       print(f"nan en bedrooms_rec DESPUES:{self.df['bedrooms_rec'].isna().sum()}")
+       print(f"nan en bathrooms_rec DESPUES:{self.df['bathrooms_rec'].isna().sum()}")
+
+       self._imputacion_espacios_medians()
+       print(f"nan en rooms_rec ULTIMO :{self.df['rooms_rec'].isna().sum()}")
+       print(f"nan en bedrooms_rec ULTIMO:{self.df['bedrooms_rec'].isna().sum()}")
+       print(f"nan en bathrooms_rec ULTIMO:{self.df['bathrooms_rec'].isna().sum()}")
+
+   def tratamiento_final_nan_pm2(self):
+       self.tratamiento_price_m2()
+       print(f"Nan en price_m2:{self.df['price_m2'].isna().sum()}")
+       print(f"Nan en price_m2_x_surface_total:{self.df['price_m2_x_surface_total'].isna().sum()}")
+
+   def tratamiento_ultimos_nan(self):
+       if self.prop != "Cochera":
+            self._imputacion_rooms_surface(a_imputar="surface_covered")
+       self._imputacion_covered_con_total_viceversa(a_imputar="surface_total")
+       
+       print(f"nan price_m2 antes: {self.df['price_m2'].isna().sum()}")
+       f=self.df["price_m2"].isna()
+       self.df.loc[f,"price_m2"] = self.df["price_m2"].mean()
+       print(f"nan price_m2 despues: {self.df['price_m2'].isna().sum()}")
+
+
+       print(f"nan price_m2_x_surface_total antes: {self.df['price_m2_x_surface_total'].isna().sum()}")
+       f=self.df["price_m2_x_surface_total"].isna()
+       self.df.loc[f,'price_m2_x_surface_total'] = self.df.loc[f,'price_m2'] *self.df.loc[f,'surface_total']
+       print(f"nan price_m2_x_surface_total despues: {self.df['price_m2_x_surface_total'].isna().sum()}")
+
+       print(f"nan lat antes: {self.df['lat'].isna().sum()}")
+       f=self.df["lat"].isna()
+       self.df.loc[f,"lat"] = self.df["lat"].median()
+       print(f"nan lat despues: {self.df['lat'].isna().sum()}")
+          
+       print(f"nan lon antes: {self.df['lon'].isna().sum()}")
+       f=self.df["lon"].isna()
+       self.df.loc[f,"lon"] = self.df["lat"].median()
+       print(f"nan lon despues: {self.df['lon'].isna().sum()}")
+
+   def feature_cov_total_def(self):
+       self.df["cov_total_def"] = self.df["surface_covered"] / self.df["surface_total"]
+
+   def key_words(self):
+        if self.prop != "Cochera":
+            self.df['PH'] = (
+            self.df['title'].astype(str).str.lower().str.contains('ph', na=False) |
+            self.df['description'].astype(str).str.lower().str.contains('ph', na=False)).astype(int)
+
+            self.df['tiene_pileta'] = (
+                self.df['title'].astype(str).str.lower().str.contains('pileta|piscina|natatorio', na=False) |
+                self.df['description'].astype(str).str.lower().str.contains('pileta|piscina|natatorio', na=False)).astype(int)
+
+        self.df['a_estrenar'] = (
+            self.df['title'].astype(str).str.lower().str.contains('a estrenar|para estrenar|sin estrenar', na=False) |
+            self.df['description'].astype(str).str.lower().str.contains('a estrenar|para estrenar|sin estrenar', na=False)).astype(int)
+
+        self.df['de_pozo'] = (
+            self.df['title'].astype(str).str.lower().str.contains('de pozo|pozo', na=False) |
+            self.df['description'].astype(str).str.lower().str.contains('de pozo|pozo', na=False)).astype(int)
+
+        self.df["Palermo_Chico"] = 0
+        f=self.df["l4"]=="Palermo Chico"
+        self.df.loc[f,"Palermo_Chico"] = 1
+
+        self.df["Palermo"] = 0
+        f=self.df["l4"]=="Palermo"
+        self.df.loc[f,"Palermo"] = 1 
+
+   def eliminacion_columnas(self):
+        if self.prop!="Cochera":
+            self.df.drop(columns=['ad_type','start_date', 'end_date', 'created_on',
+                                    'l1','l2', 'l5', 'l6', 'rooms', 'bedrooms', 'bathrooms',
+                                    'currency', 'price_period','operation_type', 'l4_title',
+                                    'l4_descr', 'dataset', 'rooms_title', 'rooms_description',
+                                    'categorize_rooms', 'rooms_def','cov_total', 'price_m2_real','price_m2'
+                                    ] , inplace=True)
+        else:
+            self.df.drop(columns=['ad_type','start_date', 'end_date', 'created_on',
+                                    'l1','l2', 'l5', 'l6',
+                                    'currency', 'price_period','operation_type', 'l4_title',
+                                    'l4_descr', 'dataset',
+                                    'cov_total', 'price_m2_real','price_m2'
+                                    ] , inplace=True)
+            
+   def model_entrenamiento(self , modo="version_train_test_split_elegido",n_estimators = 500,max_depth=30,min_samples_split=2 ,min_samples_leaf=1 ):
+        f_ent = self.df["price"].notna()
+        self.df_ent = self.df.loc[f_ent].copy()
+        print(f"shape df_ent: {self.df_ent.shape}")
+
+        self.df_ent = self.df_ent.select_dtypes(['number', 'bool'])
+        print(f"df_ent columns: {self.df_ent.columns}")
+        X = self.df_ent[self.df_ent.columns.drop('price')]
+        y = self.df_ent['price']
+       
+        if modo == "version_train_test_split_elegido":
+            print(modo)
+            X_train, X_test, y_train, y_test = sk.model_selection.train_test_split(X, y, test_size=0.2, random_state=42)
+            best_score_test = 1000000
+            reg = sk.ensemble.RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, 
+                                                    min_samples_split= min_samples_split, min_samples_leaf= min_samples_leaf,
+                                                    n_jobs=4, random_state=42)
+            _ = reg.fit(X_train, y_train)
+            y_pred = reg.predict(X_train)
+            score_train = sk.metrics.root_mean_squared_error(y_train, y_pred)
+            y_pred = reg.predict(X_test)
+            score_test  = sk.metrics.root_mean_squared_error(y_test,  y_pred)
+            best_score_test = min(best_score_test, score_test)
+            print(f"{n_estimators=} -- {max_depth=} --> {score_train=:.2f} - {score_test=:.2f} - {best_score_test=:.2f}")
+        
+        if modo == "version_train_test_split_iterativo":
+            print(modo)
+            X_train, X_test, y_train, y_test = sk.model_selection.train_test_split(X, y, test_size=0.2, random_state=42)
+            best_score_test = 1000000
+            for n_estimators in [10, 50, 100, 300, 500, 700, 1000]:
+                for max_depth in [5, 10, 20, 30, 50, None]:
+                    reg = sk.ensemble.RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, 
+                                                            min_samples_split= min_samples_split, min_samples_leaf= min_samples_leaf, 
+                                                            n_jobs=4, random_state=42)
+                    _ = reg.fit(X_train, y_train)
+                    y_pred = reg.predict(X_train)
+                    score_train = sk.metrics.root_mean_squared_error(y_train, y_pred)
+                    y_pred = reg.predict(X_test)
+                    score_test  = sk.metrics.root_mean_squared_error(y_test,  y_pred)
+                    best_score_test = min(best_score_test, score_test)
+                    print(f"{n_estimators=} -- {max_depth=} --> {score_train=:.2f} - {score_test=:.2f} - {best_score_test=:.2f}")
+
+        if modo == "version_validacion_cruzada":
+            print(modo)
+            best_score = 1000000
+            for n_estimators in [10, 50, 100, 300, 500, 700, 1000]:
+                for max_depth in [5, 10, 20, 30, 50, None]:
+                    reg = sk.ensemble.RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth,
+                                                            min_samples_split= min_samples_split, min_samples_leaf= min_samples_leaf,
+                                                            n_jobs=4, random_state=42)
+
+                    scores = -1*sk.model_selection.cross_val_score(reg, X, y, cv=5, scoring="neg_root_mean_squared_error", n_jobs=4)
+
+                    scores_mean = scores.mean()
+                    scores_std = scores.std()
+
+                    best_score = min(best_score, scores_mean)
+
+                    print(f"{n_estimators=} -- {max_depth=} --> {scores_mean=:.2f} - {scores_std=:.2f} - {best_score=:.2f}")
+
+        if modo == "version_entrenamiento_final":
+            print(modo)
+            reg = sk.ensemble.RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, 
+                                                    min_samples_split= min_samples_split, min_samples_leaf= min_samples_leaf,
+                                                    n_jobs=4, random_state=42)
+            reg.fit(X, y)
+            self.reg=reg
+            print("Modelo finalizado listo para la prediccion")
+
+   def model_prediccion(self):
+        f_ap=self.df["price"].isna()
+        self.df_ap=self.df.loc[f_ap].copy()
+        print(f"shape df_ap: {self.df_ap.shape}")
+   
+
+
+        self.df_ap = self.df_ap.select_dtypes(['number', 'bool'])
+
+        print(f"df_ap columns: {self.df_ap.columns}")
+
+        X_ap = self.df_ap[self.df_ap.columns.drop('price')]
+        y = self.df_ap['price'] # No es necesario
+
+        y_pred_ap = self.reg.predict(X_ap)
+
+        print("Predicciones realizadas")
+
+        self.df_ap["price"] = y_pred_ap
+        
 #                       --------------------
 # ********************* | METODOS INTERNOS | ***********************************
 #                       --------------------
@@ -414,6 +597,68 @@ class PropertyType:
                 rooms_def = row["rooms_def"]
 
         return pd.Series({"rooms_def": rooms_def,"bedrooms": bedrooms,"bathrooms": bathrooms})
+   @staticmethod
+   def _imputacion_espacios_2(row):        
+        # Cuando rooms_rec no es nan : Aca corrijo y recupero todos los que son nan en bathrooms_rec y bedrooms pero no en rooms_def
+        if not pd.isna(row["rooms_rec"]):
+            rooms_rec=row["rooms_rec"]
+            
+            # Caso de rooms ==1 o 2. Ponemos baños y bedrooms_rec 1. Este es para todos
+            if rooms_rec <= 2:
+                bedrooms_rec = 1
+                bathrooms_rec = 1
+
+            # Caso de rooms >2. bedrooms_rec restamos 1 y bathrooms_rec 2 
+            elif rooms_rec >2:
+                bedrooms_rec= rooms_rec - 1
+
+                if (row["bathrooms_rec"] > rooms_rec) | (pd.isna(row["bathrooms_rec"])) |(row["bathrooms_rec"]==0):
+                    bathrooms_rec = rooms_rec - 2
+                else:
+                    bathrooms_rec = row["bathrooms_rec"]
+        else:
+            if (pd.notna(row["bedrooms_rec"])) & ((row["bathrooms_rec"]> row["bedrooms_rec"]) |(pd.isna(row["bathrooms_rec"]))) :
+                bedrooms_rec = row["bedrooms_rec"]
+                rooms_rec = bedrooms_rec + 1
+                bathrooms_rec = bedrooms_rec
+            elif (pd.notna(row["bedrooms_rec"])) & (row["bathrooms_rec"]<= row["bedrooms_rec"]):
+                bedrooms_rec = row["bedrooms_rec"]
+                rooms_rec = bedrooms_rec + 1
+                bathrooms_rec = row["bathrooms_rec"]
+
+            elif (pd.isna(row["bedrooms_rec"])) & (pd.notna(row["bathrooms"]) ):
+                
+                bathrooms_rec=row["bathrooms_rec"]
+                bedrooms_rec = bathrooms_rec+1
+                rooms_rec = bathrooms_rec +2
+            
+            elif (pd.isna(row["bedrooms_rec"])) & (pd.isna(row["bathrooms_rec"])) :
+                bathrooms_rec=np.nan
+                bedrooms_rec = np.nan
+                rooms_rec = np.nan
+
+            else:
+                print(f"ESTE CASO NO LO CONTEMPLE. Es el indice {row.name}")
+
+                bathrooms_rec=row["bathrooms_rec"]
+                bedrooms_rec = row["bedrooms_rec"]
+                rooms_rec = row["rooms_rec"]
+
+        return pd.Series({"rooms_rec": rooms_rec,"bedrooms_rec": bedrooms_rec,"bathrooms_rec": bathrooms_rec})
+
+   def _imputacion_espacios_medians(self):
+        rooms_median=self.df["rooms_rec"].median()
+        bedrooms_median = self.df["bedrooms_rec"].median()
+        bathrooms_median = self.df["bathrooms_rec"].median()
+
+        f_rooms=self.df["rooms_rec"].isna() 
+        self.df.loc[ f_rooms,"rooms_rec"]=rooms_median
+
+        f_bathrooms=self.df["bathrooms_rec"].isna()
+        self.df.loc[f_bathrooms,"bathrooms_rec"]=bathrooms_median
+
+        f_bedrooms=self.df["bedrooms_rec"].isna()
+        self.df.loc[f_bedrooms,"bedrooms_rec"]=bedrooms_median
 
 # Tratamiento surface_covered vs surface_total -----------------------------------------------------------
    def _rotacion_cov_tot(self):
@@ -466,16 +711,19 @@ class PropertyType:
             self.df.loc[f_ap  & f_linf_coch,surface]= np.nan
             print(f"Max y min de cocheras en ap : {self.df.loc[f_ap,surface].agg(['max','min'])}")
 
-   def _imputacion_covered_con_total_viceversa(self):
-        f_cov_na = (self.df["surface_covered"].isna()) & (self.df["surface_total"].notna())
-        f_tot_na= (self.df["surface_total"].isna()) & (self.df["surface_covered"].notna())
-        print(f"nan en covered antes : {self.df['surface_covered'].isna().sum()}")
-        print(f"nan en total antes : {self.df['surface_total'].isna().sum()}")
-
-        self.df.loc[f_cov_na,'surface_covered'] = self.df.loc[f_cov_na,'surface_total']
-        self.df.loc[f_tot_na,'surface_total'] = self.df.loc[f_tot_na,'surface_covered']
-        print(f"nan en covered despues : {self.df['surface_covered'].isna().sum()}")
-        print(f"nan en total despues : {self.df['surface_total'].isna().sum()}")
+   def _imputacion_covered_con_total_viceversa(self,a_imputar):
+        if a_imputar=="surface_covered":
+            print(f"nan en covered antes : {self.df['surface_covered'].isna().sum()}")
+            f_cov_na = (self.df["surface_covered"].isna()) & (self.df["surface_total"].notna())
+            self.df.loc[f_cov_na,'surface_covered'] = self.df.loc[f_cov_na,'surface_total']
+            print(f"nan en covered despues : {self.df['surface_covered'].isna().sum()}")
+            
+        elif a_imputar=="surface_total":
+            print(f"nan en total antes : {self.df['surface_total'].isna().sum()}")
+            f_tot_na= (self.df["surface_total"].isna()) & (self.df["surface_covered"].notna())
+            self.df.loc[f_tot_na,'surface_total'] = self.df.loc[f_tot_na,'surface_covered']
+            print(f"nan en total despues : {self.df['surface_total'].isna().sum()}")
+            
 
    def _outliers_surface_ent(self):
    
@@ -662,3 +910,11 @@ class PropertyType:
         min_dif = gb_df["diferencia"].min()
         rooms = gb_df.loc[gb_df["diferencia"] == min_dif ,"rooms_rec"]
         return rooms.iloc[0]
+   
+# Tratamientos final nan surface_covered  -----------------------------------------------------------------------------------------------------------
+   def _eliminacion_nan_surfcovered(self):
+        print(f"shape antes de la eliminacion : {self.df.shape}")
+        f_ap=self.df["price"].isna()
+        f = self.df["surface_covered"].notna()
+        self.df=self.df.loc[f_ap | f]
+        print(f"shape despues de la eliminacion : {self.df.shape}")
