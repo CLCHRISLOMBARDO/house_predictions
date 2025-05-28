@@ -273,7 +273,12 @@ class PropertyType:
         print("Predicciones realizadas")
 
         self.df_ap["price"] = y_pred_ap
+
+   def model_importances(self):
+        X = self.df_ent[self.df_ent.columns.drop('price')]
+        self.model_importances=pd.DataFrame({"importance": self.reg.feature_importances_}, index=X.columns).sort_values(by="importance", ascending=False)
         
+
 #                       --------------------
 # ********************* | METODOS INTERNOS | ***********************************
 #                       --------------------
