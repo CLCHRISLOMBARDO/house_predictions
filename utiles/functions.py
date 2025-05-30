@@ -90,7 +90,8 @@ class PropertyType:
        self._imputacion_rooms_surface(a_imputar="rooms_rec")
 
    def tratamiento_final_nan_surfaces(self):
-       self._eliminacion_nan_surfcovered()
+       if self.prop!= "Cochera":
+            self._eliminacion_nan_surfcovered()
        self._imputacion_covered_con_total_viceversa(a_imputar="surface_total")
 
    def tratamiento_final_nan_ambientes(self):
@@ -140,6 +141,8 @@ class PropertyType:
        self.df.loc[f,"lon"] = self.df["lat"].median()
        print(f"nan lon despues: {self.df['lon'].isna().sum()}")
 
+       
+
    def feature_cov_total_def(self):
        self.df["cov_total_def"] = self.df["surface_covered"] / self.df["surface_total"]
 
@@ -168,6 +171,8 @@ class PropertyType:
         self.df["Palermo"] = 0
         f=self.df["l4"]=="Palermo"
         self.df.loc[f,"Palermo"] = 1 
+
+        
 
    def eliminacion_columnas(self):
         if self.prop!="Cochera":
@@ -278,7 +283,8 @@ class PropertyType:
         X = self.df_ent[self.df_ent.columns.drop('price')]
         self.model_importances=pd.DataFrame({"importance": self.reg.feature_importances_}, index=X.columns).sort_values(by="importance", ascending=False)
         
-
+   def text_mining(self):
+       pass 
 #                       --------------------
 # ********************* | METODOS INTERNOS | ***********************************
 #                       --------------------
